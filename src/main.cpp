@@ -242,6 +242,23 @@ int main() {
           	vector<double> next_x_vals;
           	vector<double> next_y_vals;
 
+						double target_speed = 22; //m/s
+						double MAX_ACC = 10; //m/s^2
+
+						double next_speed = 10*.02 + car_speed;
+						if(next_speed > target_speed){
+							next_speed = target_speed;
+						}
+						double distance_betwee_points = next_speed/ 50.0 ; // m/s
+
+						cout << "Next Speed: " <<  next_speed << ", Distance POints:" << distance_betwee_points << endl;
+
+						
+						for(int i =0 ; i< 50; i++){
+							next_x_vals.push_back(car_x + distance_betwee_points* i * cos(deg2rad(car_yaw)));
+							next_y_vals.push_back(car_y + distance_betwee_points* i * sin(deg2rad(car_yaw)));
+						}
+
 
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
           	msgJson["next_x"] = next_x_vals;
