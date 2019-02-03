@@ -251,7 +251,7 @@ int main() {
 						}
 						double distance_betwee_points = next_speed/ 50.0 ; // m/s
 
-						cout << "Next Speed: " <<  next_speed << ", Distance POints:" << distance_betwee_points << endl;
+						//cout << "Next Speed: " <<  next_speed << ", Distance POints:" << distance_betwee_points << endl;
 
 						
 						// for(int i =0 ; i< 50; i++){
@@ -279,13 +279,26 @@ int main() {
 							angle = atan2(pos_y-pos_y2,pos_x-pos_x2);
 						}
 
-						for (int i = 0; i < 50-path_size; ++i) {    
-							next_x_vals.push_back(pos_x+(distance_betwee_points)*cos(angle+(i+1)*(pi()/50)));
-							next_y_vals.push_back(pos_y+(distance_betwee_points)*sin(angle+(i+1)*(pi()/50)));
-							pos_x += (distance_betwee_points)*cos(angle+(i+1)*(pi()/50));
-							pos_y += (distance_betwee_points)*sin(angle+(i+1)*(pi()/50));
-						}
+						//Turn in circles
+						// for (int i = 0; i < 50-path_size; ++i) {    
+						// 	next_x_vals.push_back(pos_x+(distance_betwee_points)*cos(angle+(i+1)*(pi()/50)));
+						// 	next_y_vals.push_back(pos_y+(distance_betwee_points)*sin(angle+(i+1)*(pi()/50)));
+						// 	pos_x += (distance_betwee_points)*cos(angle+(i+1)*(pi()/50));
+						// 	pos_y += (distance_betwee_points)*sin(angle+(i+1)*(pi()/50));
+						// }
 
+						//Drive along the road
+						//Find s & d of last known points
+						//cout << end_path_s << ", " << end_path_d << endl;
+						//cout << pos_x << ", " << pos_y << endl;
+						vector<double> sd = getFrenet(pos_x, pos_y, angle, map_waypoints_x, map_waypoints_y);
+						cout << sd[0] << " ," << sd[1] << endl;
+						//exit(0);
+						for (int i=0; i< 50-path_size ; ++i){
+								vector<double> xy = getXY(sd[0] + i*0.5, 6.0, map_waypoints_s , map_waypoints_x, map_waypoints_y);
+								next_x_vals.push_back(xy[0]);
+								next_y_vals.push_back(xy[1]);
+						}
 
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
           	msgJson["next_x"] = next_x_vals;
