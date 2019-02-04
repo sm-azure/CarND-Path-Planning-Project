@@ -8,6 +8,7 @@
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
+#include "spline.h"
 
 using namespace std;
 
@@ -247,7 +248,6 @@ int main()
 					vector<double> next_x_vals;
 					vector<double> next_y_vals;
 
-					
 
 					//cout << "Next Speed: " <<  next_speed << ", Distance POints:" << distance_betwee_points << endl;
 
@@ -275,34 +275,66 @@ int main()
 						pos_x = previous_path_x[path_size - 1];
 						pos_y = previous_path_y[path_size - 1];
 
+						
+						
 						double pos_x2 = previous_path_x[path_size - 2];
 						double pos_y2 = previous_path_y[path_size - 2];
 						angle = atan2(pos_y - pos_y2, pos_x - pos_x2);
 					}
 
-					//Turn in circles
-					// for (int i = 0; i < 50-path_size; ++i) {
-					// 	next_x_vals.push_back(pos_x+(distance_betwee_points)*cos(angle+(i+1)*(pi()/50)));
-					// 	next_y_vals.push_back(pos_y+(distance_betwee_points)*sin(angle+(i+1)*(pi()/50)));
-					// 	pos_x += (distance_betwee_points)*cos(angle+(i+1)*(pi()/50));
-					// 	pos_y += (distance_betwee_points)*sin(angle+(i+1)*(pi()/50));
-					// }
+					//Add first point of previous path back to waypoints for spline
+					vector<double> s_waypoints_x;
+					vector<double> s_waypoints_y;
+					
+					s_waypoints_x.push_back(pos_x);
+					s_waypoints_y.push_back(pos_y);
+
 
 					//Drive along the road
 					//Find s & d of last known points
 					//cout << end_path_s << ", " << end_path_d << endl;
-					//cout << pos_x << ", " << pos_y << endl;
+					cout << "POS: " << pos_x << ", " << pos_y << "-" << path_size << "," << angle << endl;
 					vector<double> sd = getFrenet(pos_x, pos_y, angle, map_waypoints_x, map_waypoints_y);
-					cout << sd[0] << " ," << sd[1] << endl;
+					//cout << sd[0] << " ," << sd[1] << endl;
 					
-					double target_speed = 22; //m/s
+					double target_speed = 20; //m/s
 					double next_speed = car_speed;
 
-					double MAX_ACC = 5;	  //m/s^2
+					double MAX_ACC = 1.0;	  //m/s^2
 					double INTERVAL = 20.0/1000.0; // 20ms
 
 					double s_increment = sd[0];
+
+					//Get rough points for spline connection (for going straight)
+					double max_s = 100; //2 * (car_speed * 1 + 0.5 * MAX_ACC * 1 * 1) ; //max distance at MAX_ACC x 2
+					int NUM_SPLINE_POINTS = 5;
+					double s_spline_increment = (max_s)/double(NUM_SPLINE_POINTS);
 					
+					for (int i=1;i< NUM_SPLINE_POINTS; i++){
+						vector<double> xy = getXY( s_increment + i*s_spline_increment, 6.0, map_waypoints_s, map_waypoints_x, map_waypoints_y);	
+						//cout << "Spline: " << xy[0] << ", "<< xy[1] << endl;
+						s_waypoints_x.push_back(xy[0]);
+						s_waypoints_y.push_back(xy[1]);
+					}
+
+					// If we use these x,y coordinates directly, then there is no guarantee that x is linearly increasing
+					// since the map is in real world coordinates. Hence we need to convert to car coordinates
+
+					//Convert from real world to car
+					for (int i=0; i< s_waypoints_x.size(); i++ ){
+						double shift_x = s_waypoints_x[i] - pos_x;
+						double shift_y = s_waypoints_y[i] - pos_y;
+
+						s_waypoints_x[i] = shift_x * cos (-angle) - shift_y * sin(-angle);
+						s_waypoints_y[i] = shift_x * sin (-angle) + shift_y * cos(-angle);
+					}
+
+					//Apply the spline
+					tk::spline s;
+   					s.set_points(s_waypoints_x,s_waypoints_y);
+					
+					// Drive with linear acceleration along the spline starting at zero
+					double start_origin_x = 0;
 					for (int i = 0; i < 50 - path_size; ++i)
 					{					
 						next_speed = next_speed + MAX_ACC * INTERVAL;
@@ -315,11 +347,27 @@ int main()
 						}
 						double distance_betwee_points = next_speed * INTERVAL + 0.5 * ACC * INTERVAL * INTERVAL;
 						//cout << next_speed << ", " << distance_betwee_points << endl;
-						s_increment = s_increment + distance_betwee_points;
-						vector<double> xy = getXY( s_increment , 6.0, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-						next_x_vals.push_back(xy[0]);
-						next_y_vals.push_back(xy[1]);
+						double x_point = start_origin_x + distance_betwee_points;
+						double y_point = s(x_point);
+
+						start_origin_x = x_point;
+						
+						double x_ref = x_point;
+						double y_ref = y_point;
+
+						x_point = x_ref * cos(angle) - y_ref * sin(angle);
+              			y_point = x_ref * sin(angle) + y_ref * cos(angle);
+
+						x_point += pos_x;
+						y_point += pos_y;
+
+						//cout << x_point << "," << y_point<< endl;
+						
+
+						next_x_vals.push_back(x_point);
+						next_y_vals.push_back(y_point);
 					}
+					//exit(0);
 					// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
 					msgJson["next_x"] = next_x_vals;
 					msgJson["next_y"] = next_y_vals;
