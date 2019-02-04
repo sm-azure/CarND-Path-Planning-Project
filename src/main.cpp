@@ -258,6 +258,7 @@ int main()
 					double pos_x;
 					double pos_y;
 					double angle;
+					double next_speed = 0;
 					int path_size = previous_path_x.size();
 					for (int i = 0; i < path_size; ++i)
 					{
@@ -269,6 +270,7 @@ int main()
 						pos_x = car_x;
 						pos_y = car_y;
 						angle = deg2rad(car_yaw);
+						next_speed = car_speed;
 					}
 					else
 					{
@@ -280,6 +282,7 @@ int main()
 						double pos_x2 = previous_path_x[path_size - 2];
 						double pos_y2 = previous_path_y[path_size - 2];
 						angle = atan2(pos_y - pos_y2, pos_x - pos_x2);
+						next_speed = sqrt ((pos_x2 - pos_x) * (pos_x2 - pos_x) + (pos_y2-pos_y) * (pos_y2-pos_y))/0.02;
 					}
 
 					//Add first point of previous path back to waypoints for spline
@@ -297,11 +300,11 @@ int main()
 					vector<double> sd = getFrenet(pos_x, pos_y, angle, map_waypoints_x, map_waypoints_y);
 					//cout << sd[0] << " ," << sd[1] << endl;
 					
-					double target_speed = 20; //m/s
-					double next_speed = car_speed;
+					double target_speed = 22; //m/s
+					
 
-					double MAX_ACC = 1.0;	  //m/s^2
-					double INTERVAL = 20.0/1000.0; // 20ms
+					double MAX_ACC = 5.0;	  //m/s^2
+					double INTERVAL = 20.0 /1000.0; // 20ms
 
 					double s_increment = sd[0];
 
