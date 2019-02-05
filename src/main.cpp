@@ -245,6 +245,11 @@ int main()
 
 					json msgJson;
 
+					double target_speed = 22; //m/s
+					double MAX_ACC = 5.0;	  //m/s^2
+					double INTERVAL = 20.0 /1000.0; // 20ms
+					double BUFFER_DISTANCE = 22; //m
+
 					vector<double> next_x_vals;
 					vector<double> next_y_vals;
 
@@ -258,7 +263,7 @@ int main()
 					double pos_x;
 					double pos_y;
 					double angle;
-					double next_speed = 0;
+					double last_speed = 0;
 					int path_size = previous_path_x.size();
 					for (int i = 0; i < path_size; ++i)
 					{
@@ -270,7 +275,7 @@ int main()
 						pos_x = car_x;
 						pos_y = car_y;
 						angle = deg2rad(car_yaw);
-						next_speed = car_speed;
+						last_speed = car_speed;
 					}
 					else
 					{
@@ -282,7 +287,7 @@ int main()
 						double pos_x2 = previous_path_x[path_size - 2];
 						double pos_y2 = previous_path_y[path_size - 2];
 						angle = atan2(pos_y - pos_y2, pos_x - pos_x2);
-						next_speed = sqrt ((pos_x2 - pos_x) * (pos_x2 - pos_x) + (pos_y2-pos_y) * (pos_y2-pos_y))/0.02;
+						last_speed = sqrt ((pos_x2 - pos_x) * (pos_x2 - pos_x) + (pos_y2-pos_y) * (pos_y2-pos_y))/0.02;
 					}
 
 					//Add first point of previous path back to waypoints for spline
@@ -298,13 +303,61 @@ int main()
 					//cout << end_path_s << ", " << end_path_d << endl;
 					cout << "POS: " << pos_x << ", " << pos_y << "-" << path_size << "," << angle << endl;
 					vector<double> sd = getFrenet(pos_x, pos_y, angle, map_waypoints_x, map_waypoints_y);
-					//cout << sd[0] << " ," << sd[1] << endl;
+						cout << sd[0] << " ," << sd[1] << endl;
 					
-					double target_speed = 22; //m/s
 					
+					// Localize other cars
+					bool car_front = false;
+					bool car_left = false;
+					bool car_right = false;
 
-					double MAX_ACC = 5.0;	  //m/s^2
-					double INTERVAL = 20.0 /1000.0; // 20ms
+					//What is my current lane?
+					int ego_lane = -1;
+					if(sd[1] > 0 && sd[1] <=4){
+						ego_lane = 0;
+					}else if(sd[1] >4 && sd[1] <=8){
+						ego_lane = 1;
+					}else if(sd[1]>8 && sd[1] <=12){
+						ego_lane =2;
+					}else{
+						cout << "Ego out of mind (d): " << sd[1] << endl;
+						exit(0);
+					}
+					//cout << "Ego Lane: " << ego_lane << endl;
+
+					//Is anyone infront (assume 2 seconds look ahead. 22m/s *2s = 44m)
+					//cout << "Num cars: "  << sensor_fusion.size() << endl;
+					for(int i=0;i< sensor_fusion.size(); i++){
+						double car_d = sensor_fusion[i][6];
+						int car_lane = -1;
+						if(car_d >0 && car_d <=4){
+							car_lane = 0;	
+						}else if(car_d > 4 && car_d <=8){
+							car_lane = 1;
+						}else if(car_d >8 && car_d <=12){
+							car_lane = 2;
+						}
+						if(car_lane == -1){
+							cout << "Unknown lane car: " << sensor_fusion[i] << endl;
+							continue;
+						}
+						if(car_lane == ego_lane){
+							double s_ego = sd[0];
+							double s_car = sensor_fusion[i][5];
+							//cout << "Car Infront at distance" << s_car - s_ego<< endl;
+							double distance_front = (s_car - s_ego);
+							if( distance_front < BUFFER_DISTANCE && distance_front > 0){
+								
+								//cout << sensor_fusion[i] << endl;
+								// Follow car 
+								double vx = sensor_fusion[i][3];
+								double vy = sensor_fusion[i][4];
+								double car_v = sqrt(vx*vx + vy*vy);
+								cout << "Car in range (m):" << ( s_car - s_ego) << " ,v:"<< car_v <<  endl;
+								target_speed = car_v;
+							}
+						}
+					}
 
 					double s_increment = sd[0];
 
@@ -340,15 +393,21 @@ int main()
 					double start_origin_x = 0;
 					for (int i = 0; i < 50 - path_size; ++i)
 					{					
-						next_speed = next_speed + MAX_ACC * INTERVAL;
+						
 						double ACC = MAX_ACC;
 						// If target speed is not reached, keep accelerating else acceleration = 0
-						if (next_speed > target_speed)
+						if (last_speed > target_speed)
 						{
-							next_speed = target_speed;
-							ACC = 0;
+							last_speed = last_speed - MAX_ACC * INTERVAL;
+							ACC = - 2 * MAX_ACC;
+						} else if (last_speed == target_speed){
+							last_speed = target_speed;
+							ACC = 0.0;
+						} else if (last_speed < target_speed){
+							last_speed = last_speed + MAX_ACC * INTERVAL;
+							ACC = MAX_ACC;
 						}
-						double distance_betwee_points = next_speed * INTERVAL + 0.5 * ACC * INTERVAL * INTERVAL;
+						double distance_betwee_points = last_speed * INTERVAL + 0.5 * ACC * INTERVAL * INTERVAL;
 						//cout << next_speed << ", " << distance_betwee_points << endl;
 						double x_point = start_origin_x + distance_betwee_points;
 						double y_point = s(x_point);
