@@ -265,6 +265,10 @@ int main()
 					double angle;
 					double last_speed = 0;
 					int path_size = previous_path_x.size();
+					vector<double> s_waypoints_x;
+					vector<double> s_waypoints_y;
+					
+
 					for (int i = 0; i < path_size; ++i)
 					{
 						next_x_vals.push_back(previous_path_x[i]);
@@ -282,6 +286,9 @@ int main()
 						pos_x = previous_path_x[path_size - 1];
 						pos_y = previous_path_y[path_size - 1];
 
+						s_waypoints_x.push_back(previous_path_x[path_size - 2]);
+						s_waypoints_y.push_back(previous_path_y[path_size - 2]);
+
 						
 						
 						double pos_x2 = previous_path_x[path_size - 2];
@@ -291,8 +298,6 @@ int main()
 					}
 
 					//Add first point of previous path back to waypoints for spline
-					vector<double> s_waypoints_x;
-					vector<double> s_waypoints_y;
 					
 					s_waypoints_x.push_back(pos_x);
 					s_waypoints_y.push_back(pos_y);
@@ -310,6 +315,7 @@ int main()
 					bool car_front = false;
 					bool car_left = false;
 					bool car_right = false;
+					double car_speed_front = target_speed;
 
 					//What is my current lane?
 					int ego_lane = -1;
@@ -354,8 +360,66 @@ int main()
 								double vy = sensor_fusion[i][4];
 								double car_v = sqrt(vx*vx + vy*vy);
 								cout << "Car in range (m):" << ( s_car - s_ego) << " ,v:"<< car_v <<  endl;
-								target_speed = car_v;
+								car_front = true;
+								car_speed_front = car_v;
 							}
+						}
+						//Shift lane left
+						else if ((ego_lane == 1 && car_lane == 0) || (ego_lane ==2 && car_lane == 1)){
+							//Where is ego if it decides to shift lane
+							double s_ego = sd[0];
+							double ego_distance_new_lane_projection = last_speed * 1; // 1 second away
+							double ego_s_new_lane_projection = s_ego + ego_distance_new_lane_projection;
+
+							//Where is car in the new lane
+							double s_car = sensor_fusion[i][5];
+							double vx = sensor_fusion[i][3];
+							double vy = sensor_fusion[i][4];
+							double car_v = sqrt(vx*vx + vy*vy);
+							double car_s_lane_projection = s_car + car_v * 1; // in 1 second
+
+							if(abs(car_s_lane_projection - ego_s_new_lane_projection) < 20){
+								car_left = true;	
+							}
+						}
+						//Shift lane right
+						else if ((ego_lane == 0 && car_lane == 1) || (ego_lane ==1 && car_lane == 2)){
+							//Where is ego if it decides to shift lane
+							double s_ego = sd[0];
+							double ego_distance_new_lane_projection = last_speed * 1; // 1 second away
+							double ego_s_new_lane_projection = s_ego + ego_distance_new_lane_projection;
+
+							//Where is car in the new lane
+							double s_car = sensor_fusion[i][5];
+							double vx = sensor_fusion[i][3];
+							double vy = sensor_fusion[i][4];
+							double car_v = sqrt(vx*vx + vy*vy);
+							double car_s_lane_projection = s_car + car_v * 1; // in 1 second
+
+							if(abs(car_s_lane_projection - ego_s_new_lane_projection) < 20){
+								car_right = true;	
+							}
+						}
+					}
+
+					//Lane decisions
+					int intended_lane = ego_lane;
+					if(car_front){
+						//Left bias
+						if(ego_lane == 1 && !car_left){
+							intended_lane = 0;
+						}
+						else if(ego_lane == 1 && !car_right){
+							intended_lane = 2;
+						}
+						else if(ego_lane == 0 && !car_right){
+							intended_lane = 1;
+						}
+						else if(ego_lane == 2 && !car_left){
+							intended_lane = 1;
+						}
+						else{
+							target_speed = car_speed_front; //match speed
 						}
 					}
 
@@ -363,14 +427,15 @@ int main()
 
 					//Get rough points for spline connection (for going straight)
 					double max_s = 100; //2 * (car_speed * 1 + 0.5 * MAX_ACC * 1 * 1) ; //max distance at MAX_ACC x 2
-					int NUM_SPLINE_POINTS = 5;
+					int NUM_SPLINE_POINTS = 3;
 					double s_spline_increment = (max_s)/double(NUM_SPLINE_POINTS);
 					
 					for (int i=1;i< NUM_SPLINE_POINTS; i++){
-						vector<double> xy = getXY( s_increment + i*s_spline_increment, 6.0, map_waypoints_s, map_waypoints_x, map_waypoints_y);	
+						vector<double> xy = getXY( s_increment + i*s_spline_increment, 2.0 + intended_lane*4, map_waypoints_s, map_waypoints_x, map_waypoints_y);	
 						//cout << "Spline: " << xy[0] << ", "<< xy[1] << endl;
 						s_waypoints_x.push_back(xy[0]);
 						s_waypoints_y.push_back(xy[1]);
+					
 					}
 
 					// If we use these x,y coordinates directly, then there is no guarantee that x is linearly increasing
