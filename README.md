@@ -1,6 +1,17 @@
 # CarND-Path-Planning-Project
 Self-Driving Car Engineer Nanodegree Program
    
+### Model Documentation
+1. **Lines 322-332** - Find current lane of ego vehicle
+2. **Lines 350-410** - Identify location of other vechiles and predict future position in 1 sec. Code cleanup is required. There is also an emergency braking section to handle cases when other vehicles veer into the path of ego at close range. However, there is lot of scope of improvement from the prediction perspective to prevent this from hapenning.
+3. **Lines 413-430** - Decide on which lane to select or slow down to match speed if other lanes are blocked. Here there is bias for selecting the left lane when both lanes are open because of the if/else sequence. Ideally this should be based on the long range perception data to decide which lane is more suitable.
+4. **Lines 436-463** - Create the spline points, convert to car coordinates 
+5. **Lines 465-488** - Decide on acceleration and final speed to compute the distance between points 
+6. **Lines 490-502** - Convert to real world coordinates from car system
+
+### Final results
+
+
 ### Simulator.
 You can download the Term3 Simulator which contains the Path Planning Project from the [releases tab (https://github.com/udacity/self-driving-car-sim/releases/tag/T3_v1.2).  
 
