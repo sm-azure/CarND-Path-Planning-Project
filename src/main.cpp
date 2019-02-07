@@ -315,6 +315,7 @@ int main()
 					bool car_front = false;
 					bool car_left = false;
 					bool car_right = false;
+					bool car_emergency = false;
 					double car_speed_front = target_speed;
 
 					//What is my current lane?
@@ -347,20 +348,27 @@ int main()
 							cout << "Unknown lane car: " << sensor_fusion[i] << endl;
 							continue;
 						}
+						double vx = sensor_fusion[i][3];
+						double vy = sensor_fusion[i][4];
+						double car_v = sqrt(vx*vx + vy*vy);
 						if(car_lane == ego_lane){
 							double s_ego = sd[0];
 							double s_car = sensor_fusion[i][5];
 							//cout << "Car Infront at distance" << s_car - s_ego<< endl;
 							double distance_front = (s_car - s_ego);
+							//Far look ahead (planned trajectory)
 							if( distance_front < BUFFER_DISTANCE && distance_front > 0){
 								
 								//cout << sensor_fusion[i] << endl;
 								// Follow car 
-								double vx = sensor_fusion[i][3];
-								double vy = sensor_fusion[i][4];
-								double car_v = sqrt(vx*vx + vy*vy);
 								cout << "Car in range (m):" << ( s_car - s_ego) << " ,v:"<< car_v <<  endl;
 								car_front = true;
+								car_speed_front = car_v;
+							}
+							// emergency action
+							else if( s_car <= s_ego && s_car >= car_s){
+								car_front = true;
+								car_emergency = true;
 								car_speed_front = car_v;
 							}
 						}
@@ -464,7 +472,12 @@ int main()
 						if (last_speed > target_speed)
 						{
 							last_speed = last_speed - MAX_ACC * INTERVAL;
-							ACC = - 2 * MAX_ACC;
+							if(car_emergency){
+								ACC = - 5 * MAX_ACC;
+							}else{
+								ACC = - 2 * MAX_ACC;
+							}
+							
 						} else if (last_speed == target_speed){
 							last_speed = target_speed;
 							ACC = 0.0;
